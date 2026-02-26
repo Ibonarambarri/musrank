@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 import { hashPassword, createToken, setSessionCookie } from "@/lib/auth";
-import type { User } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
-  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
-  if (userCount.count > 0) {
+  const result = await db.execute("SELECT COUNT(*) as count FROM users");
+  if (Number(result.rows[0].count) > 0) {
     return NextResponse.json({ error: "Setup already completed" }, { status: 400 });
   }
 
@@ -24,9 +23,13 @@ export async function POST(request: NextRequest) {
   }
 
   const passwordHash = hashPassword(password);
-  const result = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)").run(username.trim(), passwordHash);
+  const insertResult = await db.execute({
+    sql: "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+    args: [username.trim(), passwordHash],
+  });
 
-  const token = await createToken(result.lastInsertRowid as number, username.trim());
+  const userId = Number(insertResult.lastInsertRowid);
+  const token = await createToken(userId, username.trim());
   await setSessionCookie(token);
 
   return NextResponse.json({ success: true });

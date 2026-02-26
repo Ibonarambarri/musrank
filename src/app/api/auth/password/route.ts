@@ -19,14 +19,21 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "New password must be at least 4 characters" }, { status: 400 });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(session.userId) as User;
+  const result = await db.execute({
+    sql: "SELECT * FROM users WHERE id = ?",
+    args: [session.userId],
+  });
+  const user = result.rows[0] as unknown as User;
 
   if (!verifyPassword(currentPassword, user.password_hash)) {
     return NextResponse.json({ error: "Contrasena actual incorrecta" }, { status: 400 });
   }
 
   const newHash = hashPassword(newPassword);
-  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, session.userId);
+  await db.execute({
+    sql: "UPDATE users SET password_hash = ? WHERE id = ?",
+    args: [newHash, session.userId],
+  });
 
   return NextResponse.json({ success: true });
 }

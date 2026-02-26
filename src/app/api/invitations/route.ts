@@ -10,11 +10,15 @@ export async function POST() {
   }
 
   const token = randomBytes(24).toString("base64url");
-  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString().replace("T", " ").split(".")[0];
+  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
+    .toISOString()
+    .replace("T", " ")
+    .split(".")[0];
 
-  db.prepare(
-    "INSERT INTO invitations (token, created_by, expires_at) VALUES (?, ?, ?)"
-  ).run(token, session.userId, expiresAt);
+  await db.execute({
+    sql: "INSERT INTO invitations (token, created_by, expires_at) VALUES (?, ?, ?)",
+    args: [token, session.userId, expiresAt],
+  });
 
   return NextResponse.json({ token });
 }

@@ -5,17 +5,20 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default function RankingPage() {
-  autoAcceptExpiredMatches();
+export default async function RankingPage() {
+  await autoAcceptExpiredMatches();
 
-  const users = db.prepare("SELECT * FROM users ORDER BY elo DESC").all() as User[];
+  const result = await db.execute("SELECT * FROM users ORDER BY elo DESC");
+  const users = result.rows as unknown as User[];
 
-  const players = users.map((user, index) => ({
-    ...user,
-    position: index + 1,
-    rank: getRank(user.elo),
-    ...getPlayerStats(user.id),
-  }));
+  const players = await Promise.all(
+    users.map(async (user, index) => ({
+      ...user,
+      position: index + 1,
+      rank: getRank(user.elo),
+      ...(await getPlayerStats(user.id)),
+    }))
+  );
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">

@@ -7,15 +7,20 @@ export const dynamic = "force-dynamic";
 
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(id)) as User | undefined;
 
+  const result = await db.execute({
+    sql: "SELECT * FROM users WHERE id = ?",
+    args: [Number(id)],
+  });
+
+  const user = result.rows[0] as unknown as User | undefined;
   if (!user) notFound();
 
-  const stats = getPlayerStats(user.id);
+  const stats = await getPlayerStats(user.id);
   const rank = getRank(user.elo);
 
-  const matches = db.prepare(`
-    SELECT m.*,
+  const matchesResult = await db.execute({
+    sql: `SELECT m.*,
       u1.username as team1_player1_name,
       u2.username as team1_player2_name,
       u3.username as team2_player1_name,
@@ -27,8 +32,11 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     JOIN users u4 ON m.team2_player2 = u4.id
     WHERE m.status = 'accepted'
       AND (m.team1_player1 = ? OR m.team1_player2 = ? OR m.team2_player1 = ? OR m.team2_player2 = ?)
-    ORDER BY m.created_at DESC
-  `).all(user.id, user.id, user.id, user.id) as MatchWithPlayers[];
+    ORDER BY m.created_at DESC`,
+    args: [user.id, user.id, user.id, user.id],
+  });
+
+  const matches = matchesResult.rows as unknown as MatchWithPlayers[];
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-8">

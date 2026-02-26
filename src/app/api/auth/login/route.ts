@@ -10,7 +10,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Username and password required" }, { status: 400 });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username.trim()) as User | undefined;
+  const result = await db.execute({
+    sql: "SELECT * FROM users WHERE username = ?",
+    args: [username.trim()],
+  });
+
+  const user = result.rows[0] as unknown as User | undefined;
 
   if (!user || !verifyPassword(password, user.password_hash)) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });

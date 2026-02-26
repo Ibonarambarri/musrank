@@ -18,32 +18,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Password must be at least 4 characters" }, { status: 400 });
   }
 
-  const invitation = db.prepare(
-    "SELECT * FROM invitations WHERE token = ? AND used_by IS NULL AND expires_at > datetime('now')"
-  ).get(token) as Invitation | undefined;
+  const invResult = await db.execute({
+    sql: "SELECT * FROM invitations WHERE token = ? AND used_by IS NULL AND expires_at > datetime('now')",
+    args: [token],
+  });
+
+  const invitation = invResult.rows[0] as unknown as Invitation | undefined;
 
   if (!invitation) {
     return NextResponse.json({ error: "Invalid or expired invitation" }, { status: 400 });
   }
 
-  const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username.trim());
-  if (existing) {
+  const existingResult = await db.execute({
+    sql: "SELECT id FROM users WHERE username = ?",
+    args: [username.trim()],
+  });
+
+  if (existingResult.rows.length > 0) {
     return NextResponse.json({ error: "Username already taken" }, { status: 400 });
   }
 
   const passwordHash = hashPassword(password);
 
-  const insertUser = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
-  const markUsed = db.prepare("UPDATE invitations SET used_by = ?, used_at = datetime('now') WHERE id = ?");
-
-  const transaction = db.transaction(() => {
-    const result = insertUser.run(username.trim(), passwordHash);
-    const userId = result.lastInsertRowid as number;
-    markUsed.run(userId, invitation.id);
-    return userId;
+  const insertResult = await db.execute({
+    sql: "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+    args: [username.trim(), passwordHash],
   });
 
-  const userId = transaction();
+  const userId = Number(insertResult.lastInsertRowid);
+
+  await db.execute({
+    sql: "UPDATE invitations SET used_by = ?, used_at = datetime('now') WHERE id = ?",
+    args: [userId, invitation.id],
+  });
 
   const sessionToken = await createToken(userId, username.trim());
   await setSessionCookie(sessionToken);

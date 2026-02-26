@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import type { User } from "@/lib/types";
 
 export async function GET() {
   const session = await getSession();
@@ -9,6 +8,6 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const users = db.prepare("SELECT id, username FROM users ORDER BY username").all() as Pick<User, "id" | "username">[];
-  return NextResponse.json(users);
+  const result = await db.execute("SELECT id, username FROM users ORDER BY username");
+  return NextResponse.json(result.rows);
 }

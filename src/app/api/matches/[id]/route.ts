@@ -20,7 +20,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
-  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(Number(id)) as Match | undefined;
+  const result = await db.execute({
+    sql: "SELECT * FROM matches WHERE id = ?",
+    args: [Number(id)],
+  });
+
+  const match = result.rows[0] as unknown as Match | undefined;
 
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -30,7 +35,6 @@ export async function PATCH(
     return NextResponse.json({ error: "Match already resolved" }, { status: 400 });
   }
 
-  // Only opposing team can accept/reject
   const isOpposingTeam =
     session.userId === match.team2_player1 || session.userId === match.team2_player2;
 
@@ -39,14 +43,15 @@ export async function PATCH(
   }
 
   if (action === "reject") {
-    db.prepare("UPDATE matches SET status = 'rejected', resolved_at = datetime('now'), validated_by = ? WHERE id = ?")
-      .run(session.userId, match.id);
+    await db.execute({
+      sql: "UPDATE matches SET status = 'rejected', resolved_at = datetime('now'), validated_by = ? WHERE id = ?",
+      args: [session.userId, match.id],
+    });
     return NextResponse.json({ success: true });
   }
 
-  // Accept: update match and recalculate ELO
   match.validated_by = session.userId;
-  acceptMatch(match);
+  await acceptMatch(match);
 
   return NextResponse.json({ success: true });
 }
